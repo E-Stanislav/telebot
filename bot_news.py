@@ -7,25 +7,27 @@ import telebot
 import copy
 import time
 
-CHAT_ID, TOKEN = <CHAT_ID>, <TOKEN>
+TOKEN = ''
 
 bot = telebot.TeleBot(TOKEN)
 
 
 
-def send_message(title, body, site, times):
+def send_message(title, body, site, times, df):
+    dicts = df.to_dict('records')
     tb = telebot.TeleBot(TOKEN)
-    markdown = f"""
-    *{title}*
-    {body}..
-    [ ]({site})
-    {times}
-
-    """
-    ret_msg = tb.send_message(CHAT_ID, markdown, parse_mode="Markdown")
-    assert ret_msg.message_id
-
-
+    for step in dicts:
+        CHAT_ID = step['id']
+        markdown = f"""
+        *{title}*
+        [ ]({site})
+{body}
+        """
+        try:
+            ret_msg = tb.send_message(CHAT_ID, markdown, parse_mode="Markdown")
+            assert ret_msg.message_id
+        except:
+            pass
 headers = {
     'authority': 'vc.ru',
     'upgrade-insecure-requests': '1',
@@ -58,6 +60,37 @@ def replace_body(string):
     return string
 
 class Main:
+    def load_users():
+        response = requests.get(f'https://api.telegram.org/bot{TOKEN}/getUpdates')
+        data = pd.DataFrame()
+        try:
+            for step in response.json()['result']:
+                id_ = step['message']['from']['id']
+                name = step['message']['from']['first_name']
+                curr_user = [[id_, name]]
+                curr_user = pd.DataFrame(curr_user, columns=['id', 'Name'])
+                data = pd.concat([data, curr_user], axis=0)
+                return data
+        except:
+            return data
+
+    def get_new_users():
+        try:
+            old_user = pd.read_csv('users.csv')
+            old_user.columns = ['id', 'Name']
+            data = Main.load_users()
+            if data.shape[0] != 0:
+                all_users = pd.concat([old_user, data], axis = 0)
+                all_users = all_users.drop_duplicates(subset=['id', 'Name'], keep='last')
+                all_users.to_csv('users.csv', index = False)
+                return all_users
+            else:
+                return old_user
+        except:
+            data = Main.load_users()
+            data.to_csv('users.csv', index = False)
+            return data
+
     def download():
         response = requests.get('https://vc.ru/new', headers=headers)
         soup = BeautifulSoup(response.text, 'html.parser')
@@ -92,25 +125,33 @@ class Main:
         df['time'] = pd.to_datetime(df['time'])
         return df
 
+    def polling():
+        all_users = Main.get_new_users()
+        all_users = all_users.drop_duplicates(subset=['id', 'Name'], keep='last')
+        df = Main.download()
+
+        old_df = pd.read_csv('news.csv')
+        old_df['time'] = old_df.apply(lambda x: datetime.datetime.strptime(str(x['time']), '%Y-%m-%d %H:%M:%S'), axis=1)
+        date_old = old_df['time'][0]
+        to_send = df.query("@date_old < time")
+        to_send = to_send.sort_values(by='time')
+        to_send = to_send.to_dict('records')
+
+        for step in to_send:
+            title = step['title'].split(' ')
+            title = ' '.join(str(e) for e in title)
+            body = step['body'].split(' ')
+            body = ' '.join(str(e) for e in body)
+            send_message(title, body, step['site'], step['time'], all_users)
+            print(title)
+        if len(to_send) != 0:
+            print(f'Обновление произошло в: {datetime.datetime.now()}')
+            df.to_csv('news.csv', index=False)
+            # print('Конец итерации')
+        time.sleep(60)
+
 while True:
-    df = Main.download()
-
-    old_df = pd.read_csv('news.csv')
-    old_df['time'] = old_df.apply(lambda x: datetime.datetime.strptime(str(x['time']), '%Y-%m-%d %H:%M:%S'), axis=1)
-    date_old = old_df['time'][0]
-    to_send = df.query("@date_old < time")
-    to_send = to_send.sort_values(by='time')
-    to_send = to_send.to_dict('records')
-
-    for step in to_send:
-        title = step['title'].split(' ')[:3]
-        title = ' '.join(str(e) for e in title)
-        body = step['body'].split(' ')[:25]
-        body = ' '.join(str(e) for e in body)
-        send_message(title, body, step['site'], step['time'])
-        print(title)
-    if len(to_send) != 0:
-        print(f'Обновление произошло в: {datetime.datetime.now()}')
-        df.to_csv('news.csv', index=False)
-        # print('Конец итерации')
-    time.sleep(60)
+    try:
+        Main.polling()
+    except:
+        time.sleep(60)
