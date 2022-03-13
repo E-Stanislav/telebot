@@ -63,16 +63,18 @@ class Main:
     def load_users():
         response = requests.get(f'https://api.telegram.org/bot{TOKEN}/getUpdates')
         data = pd.DataFrame()
-        try:
-            for step in response.json()['result']:
+        users = step = response.json()['result']
+        for i in range(1, len(users)):
+            try:
+                step = users[i]
                 id_ = step['message']['from']['id']
                 name = step['message']['from']['first_name']
                 curr_user = [[id_, name]]
                 curr_user = pd.DataFrame(curr_user, columns=['id', 'Name'])
                 data = pd.concat([data, curr_user], axis=0)
-                return data
-        except:
-            return data
+            except:
+                pass
+        return data
 
     def get_new_users():
         try:
