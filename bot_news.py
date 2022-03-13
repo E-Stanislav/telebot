@@ -6,6 +6,7 @@ import requests
 import telebot
 import copy
 import time
+import re
 
 TOKEN = ''
 
@@ -19,8 +20,7 @@ def send_message(title, body, site, times, df):
     for step in dicts:
         CHAT_ID = step['id']
         markdown = f"""
-        *{title}*
-        [ ]({site})
+        [ ]({site})*{title}*
 {body}
         """
         try:
@@ -57,6 +57,15 @@ def replace_body(string):
         string = string[0] + string[-1][5:]
     except:
         pass
+    return string
+    
+def del_words(string):
+    string = string.replace('  ', '')
+    string = string.replace('div', '')
+    string = string.replace('classcontent ', '')
+    string = string.replace('titlelast ', '')
+    string = string.replace('span ', '')
+    string = string.replace('word ', '')
     return string
 
 class Main:
@@ -100,11 +109,13 @@ class Main:
         for step in alls:
             step.find_all("div", {"class": "l-island-a"})
             try:
-                titl = str(step.find_all("div", {"class": "l-island-a"})[0]).split('>')[1][1:-5]
-                titl = replace_title(titl)
+                titl = str(step.find_all("div", {"class": "l-island-a"})[0]).split('>')[1]
+                titl = re.sub("[^А-Яа-яЁёA-Za-z.,:?!]", " ", titl)
+                titl = del_words(titl)
+                titl = titl.replace('Статьи редакции..', '')
+                title.append(titl[1:])
             except:
-                titl = ''
-            title.append(titl)
+                pass
             try:
                 curr_body = str(step.find_all("div", {"class": "l-island-a"})[1]).split('<p>')[1][:-11]
                 curr_body = replace_body(curr_body)
