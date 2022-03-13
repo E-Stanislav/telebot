@@ -50,15 +50,6 @@ def replace_title(string):
     string = string.replace('<span class="content-title__last-', '')
     return string
 
-
-def replace_body(string):
-    string = string.split('<')
-    try:
-        string = string[0] + string[-1][5:]
-    except:
-        pass
-    return string
-    
 def del_words(string):
     string = string.replace('  ', '')
     string = string.replace('div', '')
@@ -118,10 +109,10 @@ class Main:
                 pass
             try:
                 curr_body = str(step.find_all("div", {"class": "l-island-a"})[1]).split('<p>')[1][:-11]
-                curr_body = replace_body(curr_body)
+                curr_body = re.sub(r'\<[^)]*\>', '', curr_body)
+                body.append(curr_body)
             except:
-                curr_body = ''
-            body.append(curr_body)
+                pass
 
         for t in soup.find_all("time", {"class": "time"}):
             time.append(str(t).split('title="')[1][:19])
